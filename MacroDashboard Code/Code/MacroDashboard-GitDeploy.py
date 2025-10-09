@@ -10,10 +10,12 @@ api = "958ccd9c67808caf9f941367daf6e812"
 fred = Fred(api_key=api)
 
 # Input tickers
+# Have to make sure all tickers on the template are included here so later retrieval won't have error
 monthly_tickers = [
     "SAHMREALTIME",
     "RECPROUSM156N",
     "PCEDGC96",
+    'PCENDC96',
     "PCESC96",
     "RSAFS",
     "DSPIC96",
@@ -22,6 +24,7 @@ monthly_tickers = [
     "REVOLSL",
     "NONREVSL",
     "DGORDER",
+    'ADXDNO',
     "INDPRO",
     "TCU",
     "HOUST",
@@ -37,6 +40,7 @@ monthly_tickers = [
     "JTSJOR",
     "JTSHIR",
     "JTSTSR",
+    "AWHAETP",
     "CPIAUCSL",
     "CPILFESL",
     "PPIFIS",
@@ -44,11 +48,15 @@ monthly_tickers = [
     "PCEPILFE",
     "UMCSENT",
     "T5YIFR",
+    'CES0500000003',
     "AHETPI",
     "CSUSHPINSA",
     "DTWEXBGS",
     "IQ",
-    "IR"
+    "IR",
+    'BOPTEXP',
+    'BOPTIMP',
+    'BOPSTB'
 ]
 
 quarterly_tickers = [
@@ -56,14 +64,11 @@ quarterly_tickers = [
     "NGDPSAXDCUSQ",
     "GDPNOW",
     "PCECC96",
-    "PCNDGC96",
     "PNFIC1",
     "PRFIC1",
     "GCE",
     "ECIWAG",
-    "EXPGS",
-    "IMPGS",
-    "NETEXP"
+    'PRS85006092'
 ]
 
 weekly_tickers = [
@@ -227,7 +232,7 @@ def write_panel_for_row(
     raw_freq = ws[f"{freq_col}{row}"].value
 
     # If ticker cell is empty -> skip row
-    if raw_ticker is None or str(raw_ticker).strip() == "":
+    if raw_ticker is None or str(raw_ticker).strip() == "" or str(raw_ticker).strip() == "Freq":
         return
 
     # normalize strings safely
