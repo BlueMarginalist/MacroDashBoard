@@ -12,3 +12,8 @@
 + Dates record the most recent date of the data
 ### MacroDashboard Versions
 + keep newest and past MacroDashboards
+### code test
++ jupyter notebook on which I test my code
+## Next Steps
++ Write a function to calculate SAAR and YoY from raw data
++ Write git action yaml file
