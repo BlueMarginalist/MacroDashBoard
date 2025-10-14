@@ -18,7 +18,7 @@ jobs:
           persist-credentials: true
 
       - name: Debug - list repo files
-         run:|
+        run: |
           echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
           pwd 
           echo "Top-level:"
