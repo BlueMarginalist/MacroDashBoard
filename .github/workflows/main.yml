@@ -16,6 +16,16 @@ jobs:
           fetch-depth: 0
           lfs: true
           persist-credentials: true
+
+      - name: Debug - list repo files
+         run:|
+          echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
+          pwd 
+          echo "Top-level:"
+          ls -la
+          echo "Recursive (limited):"
+          ls -la "MacroDashboard Versions" || true
+          ls -R | sed -n '1,200p'
           
       - name: Setup Python
         uses: actions/setup-python@v6.0.0
