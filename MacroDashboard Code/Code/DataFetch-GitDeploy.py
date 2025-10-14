@@ -140,7 +140,7 @@ weekly_values, weekly_dates = Fetch(weekly_tickers, fred, "W")
 daily_values, daily_dates = Fetch(daily_tickers, fred, "D")
 
 # Save the data table to the folder "Raw Data"
-base_dir = Path.cwd().parent.parent
+base_dir = Path(__file__).resolve().parent.parent.parent
 print(base_dir)
 raw_location = base_dir / "Raw Data"
 raw_location.mkdir(parents=True, exist_ok=True)

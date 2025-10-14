@@ -5,7 +5,7 @@ from typing import List, Union
 from pathlib import Path
 
 # Set Location
-base_dir = Path.cwd().parent.parent
+base_dir = Path(__file__).resolve().parent.parent.parent
 print(base_dir)
 raw_location = base_dir / "Raw Data"
 raw_location.mkdir(parents=True, exist_ok=True)
