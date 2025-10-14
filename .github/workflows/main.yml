@@ -1,0 +1,39 @@
+name: Render and Deploy Macro Dashboard
+
+on:
+  schedule:
+    - cron: '0 14 * * *'  # Daily at 10:00 AM Eastern (UTC-4)
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+      - uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v6.0.0
+        with:
+          python-version: '3.13.2' # the python version I use locally
+
+      - name: Install python packages
+        run: |
+          python -m pip install --upgrade pip
+          pip install \
+            pandas numpy matplotlib seaborn plotly scipy scikit-learn statsmodels \
+            openpyxl fredapi
+
+      - name: Run code
+        run: |
+          python DataFetch-GitDeploy.py
+          python TemplateUpdate-GitDeploy.py
+
+      - name: Deploy all rendered reports to public GitHub Pages repo
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "actions@github.com"
+          git add .
+          git commit -m "Update all presentations"
+          git push
