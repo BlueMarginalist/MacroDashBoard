@@ -27,8 +27,8 @@ jobs:
 
       - name: Run code
         run: |
-          python DataFetch-GitDeploy.py
-          python TemplateUpdate-GitDeploy.py
+          python MacroDashboard Code/Code/DataFetch-GitDeploy.py
+          python MacroDashboard Code/Code/TemplateUpdate-GitDeploy.py
 
       - name: Deploy all rendered reports to public GitHub Pages repo
         run: |
