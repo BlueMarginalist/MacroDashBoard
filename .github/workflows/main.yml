@@ -12,7 +12,7 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
-        with: 
+        with:
           fetch-depth: 0
           lfs: true
           persist-credentials: true
@@ -26,7 +26,7 @@ jobs:
           echo "Recursive (limited):"
           ls -la "MacroDashboard Versions" || true
           ls -R | sed -n '1,200p'
-          
+
       - name: Setup Python
         uses: actions/setup-python@v6.0.0
         with:
