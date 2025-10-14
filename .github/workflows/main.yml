@@ -41,6 +41,7 @@ jobs:
 
       - name: Run code
         run: |
+           cd "MacroDashboard Code/Code"
            python "MacroDashboard Code/Code/DataFetch-GitDeploy.py"
            python "MacroDashboard Code/Code/TemplateUpdate-GitDeploy.py"
 
