@@ -86,6 +86,9 @@ def GetDelta(ticker: str, freq: str, agg_freq: str, n_lags: int = 4, pct: bool =
 
     # Get Data
     latest_date, value_col = GetData(ticker, freq_code, n_lags)
+    last_idx = value_col.last_valid_index()
+    last_pos = value_col.index.get_loc(last_idx)
+    start_pos = max(0, last_pos - n_lags)
 
     # Normal MoM if the freq is M
     if agg_code == freq_code:
@@ -93,7 +96,8 @@ def GetDelta(ticker: str, freq: str, agg_freq: str, n_lags: int = 4, pct: bool =
         if pct:
             result = value_col.pct_change(shift_arg,fill_method=None) * 100
         else:
-            result = value_col.diff(shift_arg,fill_method=None)
+            result = value_col.diff(shift_arg)
+        result = result.iloc[start_pos : last_pos + 1].tolist()
         return latest_date, result
 
     # Default index is datetime index,so this is the default way of calculating delta
@@ -125,6 +129,7 @@ def GetDelta(ticker: str, freq: str, agg_freq: str, n_lags: int = 4, pct: bool =
         else:
             result = value_col - prev
 
+        result = result.iloc[start_pos : last_pos + 1].tolist()
         return latest_date, result
 
     # If not datetime index: try integer shift from table _INT_SHIFT_TABLE
@@ -145,7 +150,9 @@ def GetDelta(ticker: str, freq: str, agg_freq: str, n_lags: int = 4, pct: bool =
     if pct:
         result = value_col.pct_change(shift,fill_method=None) * 100
     else:
-        result = value_col.diff(shift,fill_method=None)
+        result = value_col.diff(shift)
+
+    result = result.iloc[start_pos : last_pos + 1].tolist()
 
     return latest_date, result
 
@@ -171,11 +178,13 @@ start_row = 3
 max_row = ws.max_row
 
 # write data into the rows, one row each time
+
 def write_panel_for_row(
     row: int,
     ticker_col: str,
     freq_col: str,
     date_col: str,
+    units_col: str,
     present_col: str,
     lag_cols: List[str],
     n_lags: int = 4,
@@ -189,22 +198,34 @@ def write_panel_for_row(
     # read ticker and freq values from the worksheet
     raw_ticker = ws[f"{ticker_col}{row}"].value
     raw_freq = ws[f"{freq_col}{row}"].value
+    raw_units = ws[f"{units_col}{row}"].value
 
     # If ticker cell is empty -> skip row
-    if raw_ticker is None or str(raw_ticker).strip() == "" or str(raw_ticker).strip() == "Freq":
+    if raw_ticker is None or str(raw_ticker).strip() == "" or str(raw_freq).strip() == "Freq":
         return
 
     # normalize strings safely
     ticker = str(raw_ticker).strip()
     freq = str(raw_freq).strip() if raw_freq is not None else "M"
+    units = str(raw_units).strip().lower()
 
-    # get data using your GetData function (assumed defined/imported)
-    try:
-        latest_date, recent_values = GetLevel(ticker, freq, n_lags=n_lags)
-    except Exception as exc:
-        # write error to date cell and skip writing values for this row
-        ws[f"{date_col}{row}"].value = f"ERR: {exc}"
-        return
+    # get data using your GetLevel function (assumed defined/imported)
+    if('delta' not in units):
+        try:
+            latest_date, recent_values = GetLevel(ticker, freq, n_lags=n_lags)
+        except Exception as exc:
+            # write error to date cell and skip writing values for this row
+            ws[f"{date_col}{row}"].value = f"ERR: {exc}"
+            return
+    else:
+        pct="%" in units
+        agg=units[units.index("/")+1:units.index("/")+2]
+        try:
+            latest_date, recent_values = GetDelta(ticker, freq, agg, n_lags=n_lags, pct=pct)
+        except Exception as exc:
+             # write error to date cell and skip writing values for this row
+            ws[f"{date_col}{row}"].value = f"ERR: {exc}"
+            return
 
     # recent_values expected chronological oldest ... most recent
     values = list(recent_values)
@@ -243,6 +264,7 @@ left_panel = {
     "ticker_col": "B",
     "freq_col": "E",
     "date_col": "C",
+    "units_col": "D",
     "present_col": "F",
     "lag_cols": ["G", "H", "I", "J"],
 }
@@ -252,6 +274,7 @@ right_panel = {
     "ticker_col": "M",
     "freq_col": "P",
     "date_col": "N",
+    "units_col": "O",
     "present_col": "Q",
     "lag_cols": ["R", "S", "T", "U"],
 }
