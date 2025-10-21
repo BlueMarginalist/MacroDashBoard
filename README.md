@@ -12,8 +12,7 @@
 + Dates record the most recent date of the data
 ### MacroDashboard Versions
 + keep newest and past MacroDashboards
-### code test
+### Code Test
 + jupyter notebook on which I test my code
-## Next Steps
-+ Write a function to calculate SAAR and YoY from raw data
-+ Write git action yaml file
+## Technical Problems
++ sometimes there will be missing date / nonconsecutive time, should I ignore it or add NaN to fill the gap? (likely the data is not released on weekands)

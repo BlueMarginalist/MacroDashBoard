@@ -139,6 +139,11 @@ quarterly_values, quarterly_dates = Fetch(quarterly_tickers, fred, "Q")
 weekly_values, weekly_dates = Fetch(weekly_tickers, fred, "W")
 daily_values, daily_dates = Fetch(daily_tickers, fred, "D")
 
+def AddRealAvgEarning():
+    monthly_values['RCES0500000003*']=monthly_values['CES0500000003']/(monthly_values['PCEPI']/100)
+    monthly_dates['RCES0500000003*']=monthly_dates['CES0500000003']
+
+AddRealAvgEarning()
 # Save the data table to the folder "Raw Data"
 base_dir = Path(__file__).resolve().parent.parent.parent
 print(base_dir)

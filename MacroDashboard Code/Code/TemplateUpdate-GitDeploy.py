@@ -94,7 +94,7 @@ def GetDelta(ticker: str, freq: str, agg_freq: str, n_lags: int = 4, pct: bool =
     if agg_code == freq_code:
         shift_arg = 1
         if pct:
-            result = value_col.pct_change(shift_arg,fill_method=None) * 100
+            result = value_col.pct_change(shift_arg,fill_method=None)
         else:
             result = value_col.diff(shift_arg)
         result = result.iloc[start_pos : last_pos + 1].tolist()
@@ -125,7 +125,7 @@ def GetDelta(ticker: str, freq: str, agg_freq: str, n_lags: int = 4, pct: bool =
         prev = prev.reindex(value_col.index)
 
         if pct:
-            result = (value_col - prev) / prev * 100
+            result = (value_col - prev) / prev
         else:
             result = value_col - prev
 
@@ -148,7 +148,7 @@ def GetDelta(ticker: str, freq: str, agg_freq: str, n_lags: int = 4, pct: bool =
     # safe integer shift
     shift = int(shift)
     if pct:
-        result = value_col.pct_change(shift,fill_method=None) * 100
+        result = value_col.pct_change(shift,fill_method=None)
     else:
         result = value_col.diff(shift)
 
@@ -179,7 +179,7 @@ max_row = ws.max_row
 
 # write data into the rows, one row each time
 
-def write_panel_for_row(
+def WritePanel(
     row: int,
     ticker_col: str,
     freq_col: str,
@@ -281,7 +281,7 @@ right_panel = {
 
 # iterate and write
 for r in range(start_row, max_row + 1):
-    write_panel_for_row(r, **left_panel)
-    write_panel_for_row(r, **right_panel)
+    WritePanel(r, **left_panel)
+    WritePanel(r, **right_panel)
 
 wb.save(output_xlsx)
