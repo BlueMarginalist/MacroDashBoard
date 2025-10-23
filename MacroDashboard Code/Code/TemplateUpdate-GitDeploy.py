@@ -3,7 +3,6 @@ import os
 from openpyxl import load_workbook
 from typing import List, Union, Tuple
 from pathlib import Path
-from dateutil.relativedelta import relativedelta
 
 # Set Location
 base_dir = Path(__file__).resolve().parent.parent.parent
@@ -201,7 +200,9 @@ def WritePanel(
     raw_units = ws[f"{units_col}{row}"].value
 
     # If ticker cell is empty -> skip row
-    if raw_ticker is None or str(raw_ticker).strip() == "" or str(raw_freq).strip() == "Freq":
+    if raw_ticker is None or str(raw_ticker).strip() == "" \
+            or str(raw_freq).strip() == "Freq" \
+            or len(str(raw_ticker).strip())>20:
         return
 
     # normalize strings safely
@@ -242,7 +243,6 @@ def WritePanel(
     for i in range(1, len(lag_cols) + 1):
         # i=1 -> lag1 => values[-2], general: values[-1 - i]
         idx = -1 - i
-        # safe access: if index out of range, return None
         try:
             lag_values.append(values[idx])
         except IndexError:
