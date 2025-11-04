@@ -54,7 +54,6 @@ monthly_tickers = [
     'BOPTEXP',
     'BOPTIMP',
     'BOPSTB',
-    "FEDFUNDS"
 ]
 
 quarterly_tickers = [
@@ -78,6 +77,7 @@ weekly_tickers = [
 daily_tickers = [
     "T10YIE",
     "DTWEXBGS",
+    "DFF",
     "DGS2",
     "DGS5",
     "DGS10",
