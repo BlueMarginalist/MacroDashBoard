@@ -3,6 +3,7 @@ import os
 from openpyxl import load_workbook
 from typing import List, Union, Tuple
 from pathlib import Path
+from openpyxl.styles import PatternFill
 
 # Set Location
 base_dir = Path(__file__).resolve().parent.parent.parent
@@ -40,38 +41,35 @@ def GetData(ticker: str, freq: str, n_lags: int = 4):
 
     last_idx = values[ticker].last_valid_index()
     last_pos = values.index.get_loc(last_idx)
-    latest_date = dates[ticker].iloc[last_pos]
+    current_period = last_idx
+    latest_update = dates[ticker].iloc[last_pos]
     value_col = values[ticker]
-    return latest_date, value_col
+    return latest_update, value_col, current_period
 
 def GetLevel(ticker: str, freq: str, n_lags: int = 4):
-    latest_date, value_col = GetData(ticker, freq, n_lags)
+    latest_date, value_col, current_period = GetData(ticker, freq, n_lags)
     last_idx = value_col.last_valid_index()
     last_pos = value_col.index.get_loc(last_idx)
     start_pos = max(0, last_pos - n_lags)
     latest_values = value_col.iloc[start_pos: last_pos + 1].tolist()
-    return latest_date, latest_values
+    return latest_date, latest_values, current_period
 
-def GetDelta(ticker: str, freq: str, agg_freq: str, n_lags: int = 4, pct: bool = True) -> Tuple[str, pd.Series]:
+def GetDelta(ticker: str, freq: str, agg_freq: str, n_lags: int = 4, pct: bool = True) -> Tuple[str, pd.Series, pd.Timestamp]:
     """
-    Return (latest_date, delta_series) where delta_series is the same index as value_col
+    Return (latest_date, delta_series, current_period) where delta_series is the same index as value_col
     containing differences (level diffs) or percent changes depending on `pct`.
     - `freq` is the native frequency of the data stored (e.g., "M" or "MONTHLY").
     - `agg_freq` is the aggregation period for the delta (e.g., "A" for year-over-year).
     - If value_col has a DatetimeIndex, the function prefers date-aware shifts (DateOffset).
     - If value_col has a plain integer index, the function uses integer shifts where we can derive them.
     """
-    # integer shifts between canonical freq units when treating the series as regular rows
-    # meaning: how many rows apart is one agg_freq period when rows are at 'freq' resolution?
-    # e.g. if rows are monthly ('M') and agg_freq is 'A' -> shift = 12
     _INT_SHIFT_TABLE = {
         ("M", "A"): 12,
         ("M", "Q"): 3,
         ("Q", "A"): 4,
-        ("Q", "M"): None,  # fractional: 1 quarter != integer months when you treat rows as quarters
-        ("W", "M"): None,  # ambiguous unless you assume 4 or 4.345
+        ("Q", "M"): None,
+        ("W", "M"): None,
         ("D", "M"): None,
-        # same-to-same:
         ("M", "M"): 1,
         ("Q", "Q"): 1,
         ("A", "A"): 1,
@@ -83,27 +81,26 @@ def GetDelta(ticker: str, freq: str, agg_freq: str, n_lags: int = 4, pct: bool =
     freq_code = NormalizeFreq(freq)
     agg_code = NormalizeFreq(agg_freq)
 
-    # Get Data
-    latest_date, value_col = GetData(ticker, freq_code, n_lags)
+    # Get Data (now returns latest_date, value_col, current_period)
+    latest_date, value_col, current_period = GetData(ticker, freq_code, n_lags)
     last_idx = value_col.last_valid_index()
     last_pos = value_col.index.get_loc(last_idx)
     start_pos = max(0, last_pos - n_lags)
 
-    # Normal MoM if the freq is M
+    # Same-frequency change (e.g., MoM when agg == freq)
     if agg_code == freq_code:
         shift_arg = 1
         if pct:
-            result = value_col.pct_change(shift_arg,fill_method=None)
+            result = value_col.pct_change(shift_arg, fill_method=None)
         else:
             result = value_col.diff(shift_arg)
         result = result.iloc[start_pos : last_pos + 1].tolist()
-        return latest_date, result
+        return latest_date, result, current_period
 
-    # Default index is datetime index,so this is the default way of calculating delta
+    # Default: try datetime-aware shifts first
     idx = value_col.index
     if isinstance(idx, pd.DatetimeIndex) or pd.api.types.is_datetime64_any_dtype(idx):
 
-        # choose the calendar offset and use .shift(freq=...) to move values for subtraction
         if freq_code == "M" and agg_code == "A":
             offset = pd.DateOffset(months=12)
         elif freq_code == "M" and agg_code == "Q":
@@ -119,7 +116,7 @@ def GetDelta(ticker: str, freq: str, agg_freq: str, n_lags: int = 4, pct: bool =
         else:
             raise ValueError(f"Unsupported date-based conversion: {freq_code} -> {agg_code}")
 
-        # Move the historical values forward so that prev[t] == value_col[t - offset]
+        # Move historical values so prev[t] == value_col[t - offset]
         prev = value_col.shift(freq=offset)
         prev = prev.reindex(value_col.index)
 
@@ -129,9 +126,9 @@ def GetDelta(ticker: str, freq: str, agg_freq: str, n_lags: int = 4, pct: bool =
             result = value_col - prev
 
         result = result.iloc[start_pos : last_pos + 1].tolist()
-        return latest_date, result
+        return latest_date, result, current_period
 
-    # If not datetime index: try integer shift from table _INT_SHIFT_TABLE
+    # If not a datetime index, fall back to integer shifts
     key = (freq_code, agg_code)
     shift = _INT_SHIFT_TABLE.get(key, None)
     if shift is None:
@@ -144,16 +141,14 @@ def GetDelta(ticker: str, freq: str, agg_freq: str, n_lags: int = 4, pct: bool =
         else:
             raise ValueError(f"Unsupported conversion for integer-indexed series: {freq_code} -> {agg_code}")
 
-    # safe integer shift
     shift = int(shift)
     if pct:
-        result = value_col.pct_change(shift,fill_method=None)
+        result = value_col.pct_change(shift, fill_method=None)
     else:
         result = value_col.diff(shift)
 
     result = result.iloc[start_pos : last_pos + 1].tolist()
-
-    return latest_date, result
+    return latest_date, result, current_period
 
 # Get the template and location for the updated version
 folder = base_dir / "MacroDashboard Versions"
@@ -177,6 +172,11 @@ start_row = 3
 max_row = ws.max_row
 
 # write data into the rows, one row each time
+
+# yellow fill for "fresh" release dates
+_FRESH_FILL = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
+# "no fill" sentinel to clear existing fills
+_NO_FILL = PatternFill(fill_type=None)
 
 def WritePanel(
     row: int,
@@ -202,7 +202,7 @@ def WritePanel(
     # If ticker cell is empty -> skip row
     if raw_ticker is None or str(raw_ticker).strip() == "" \
             or str(raw_freq).strip() == "Freq" \
-            or len(str(raw_ticker).strip())>20:
+            or len(str(raw_ticker).strip()) > 20:
         return
 
     # normalize strings safely
@@ -210,22 +210,25 @@ def WritePanel(
     freq = str(raw_freq).strip() if raw_freq is not None else "M"
     units = str(raw_units).strip().lower()
 
-    # get data using your GetLevel function (assumed defined/imported)
-    if('delta' not in units):
+    # get data using your GetLevel/GetDelta functions (they now return 3 values)
+    if 'delta' not in units:
         try:
-            latest_date, recent_values = GetLevel(ticker, freq, n_lags=n_lags)
+            latest_date, recent_values, current_period = GetLevel(ticker, freq, n_lags=n_lags)
         except Exception as exc:
             # write error to date cell and skip writing values for this row
             ws[f"{date_col}{row}"].value = f"ERR: {exc}"
+            # clear any fill to avoid stale highlight
+            ws[f"{date_col}{row}"].fill = _NO_FILL
             return
     else:
-        pct="%" in units
-        agg=units[units.index("/")+1:units.index("/")+2]
+        pct = "%" in units
+        agg = units[units.index("/") + 1:units.index("/") + 2]
         try:
-            latest_date, recent_values = GetDelta(ticker, freq, agg, n_lags=n_lags, pct=pct)
+            latest_date, recent_values, current_period = GetDelta(ticker, freq, agg, n_lags=n_lags, pct=pct)
         except Exception as exc:
-             # write error to date cell and skip writing values for this row
+            # write error to date cell and skip writing values for this row
             ws[f"{date_col}{row}"].value = f"ERR: {exc}"
+            ws[f"{date_col}{row}"].fill = _NO_FILL
             return
 
     # recent_values expected chronological oldest ... most recent
@@ -248,14 +251,35 @@ def WritePanel(
         except IndexError:
             lag_values.append(None)
 
-    # write date (convert pandas Timestamp -> python datetime for openpyxl)
-    ws[f"{date_col}{row}"].value = _to_python_datetime(latest_date)
+    # write the representation-period (current_period) as a date (no time)
+    try:
+        # if current_period is a pandas Timestamp or datetime
+        if isinstance(current_period, pd.Timestamp):
+            ws[f"{date_col}{row}"].value = current_period.date()
+        else:
+            ws[f"{date_col}{row}"].value = _to_python_datetime(current_period).date()
+    except Exception:
+        ws[f"{date_col}{row}"].value = current_period
+
+    # Highlight date cell if latest_date is within 7 days of now; else clear fill
+    try:
+        if pd.notnull(latest_date):
+            # use pandas Timedelta to handle timezone-aware timestamps gracefully
+            latest_ts = pd.to_datetime(latest_date)
+            if pd.Timestamp.now() - latest_ts <= pd.Timedelta(days=7):
+                ws[f"{date_col}{row}"].fill = _FRESH_FILL
+            else:
+                ws[f"{date_col}{row}"].fill = _NO_FILL
+        else:
+            ws[f"{date_col}{row}"].fill = _NO_FILL
+    except Exception:
+        # In case of any comparison errors, ensure no fill is applied
+        ws[f"{date_col}{row}"].fill = _NO_FILL
 
     # write present and lag values
     ws[f"{present_col}{row}"].value = present_value
     for col_letter, lag_value in zip(lag_cols, lag_values):
         ws[f"{col_letter}{row}"].value = lag_value
-
 
 # Output section is the left panel, and other three sections are in the right panel.
 # Can automate the identification of columns for each panel
