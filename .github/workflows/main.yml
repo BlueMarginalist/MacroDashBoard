@@ -37,7 +37,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install \
             pandas numpy matplotlib seaborn plotly scipy scikit-learn statsmodels \
-            openpyxl fredapi
+            openpyxl fredapi pyfredapi
 
       - name: Run code
         run: |
