@@ -27,7 +27,7 @@ def NormalizeFreq(code: str) -> str:
             return val
     raise ValueError(f"Unsupported frequency: {code}")
 
-def GetData(ticker: str, freq: str, n_lags: int = 4):
+def GetData(ticker: str, freq: str):
     period_code=NormalizeFreq(freq)
     base = base_dir / "Raw Data"
     dates_path = os.path.join(base, f"{period_code}_Dates.csv")
@@ -44,17 +44,24 @@ def GetData(ticker: str, freq: str, n_lags: int = 4):
     current_period = last_idx
     latest_update = dates[ticker].iloc[last_pos]
     value_col = values[ticker]
-    return latest_update, value_col, current_period
+    date_col = dates[ticker]
+    return latest_update, value_col, current_period, date_col
 
 def GetLevel(ticker: str, freq: str, n_lags: int = 4):
-    latest_date, value_col, current_period = GetData(ticker, freq, n_lags)
+    latest_date, value_col, current_period, date_col = GetData(ticker, freq)
     last_idx = value_col.last_valid_index()
     last_pos = value_col.index.get_loc(last_idx)
+    period_code=NormalizeFreq(freq)
+    latest_dates = date_col.tail(n_lags + 1).tolist()
+    if period_code == "D" :
+        non_null_up_to_last = value_col.iloc[: last_pos + 1].dropna()
+        latest_values = non_null_up_to_last.tail(n_lags+1).tolist()
+        return latest_date, latest_values, current_period, latest_dates
     start_pos = max(0, last_pos - n_lags)
     latest_values = value_col.iloc[start_pos: last_pos + 1].tolist()
-    return latest_date, latest_values, current_period
+    return latest_date, latest_values, current_period, latest_dates
 
-def GetDelta(ticker: str, freq: str, agg_freq: str, n_lags: int = 4, pct: bool = True) -> Tuple[str, pd.Series, pd.Timestamp]:
+def GetDelta(ticker: str, freq: str, agg_freq: str, n_lags: int = 4, pct: bool = True) -> Tuple[str, pd.Series, pd.Timestamp, pd.Series]:
     """
     Return (latest_date, delta_series, current_period) where delta_series is the same index as value_col
     containing differences (level diffs) or percent changes depending on `pct`.
@@ -82,11 +89,12 @@ def GetDelta(ticker: str, freq: str, agg_freq: str, n_lags: int = 4, pct: bool =
     agg_code = NormalizeFreq(agg_freq)
 
     # Get Data (now returns latest_date, value_col, current_period)
-    latest_date, value_col, current_period = GetData(ticker, freq_code, n_lags)
+    latest_date, value_col, current_period, date_col = GetData(ticker, freq_code)
     last_idx = value_col.last_valid_index()
     last_pos = value_col.index.get_loc(last_idx)
     start_pos = max(0, last_pos - n_lags)
 
+    latest_dates = date_col.tail(n_lags + 1).tolist()
     # Same-frequency change (e.g., MoM when agg == freq)
     if agg_code == freq_code:
         shift_arg = 1
@@ -95,7 +103,7 @@ def GetDelta(ticker: str, freq: str, agg_freq: str, n_lags: int = 4, pct: bool =
         else:
             result = value_col.diff(shift_arg)
         result = result.iloc[start_pos : last_pos + 1].tolist()
-        return latest_date, result, current_period
+        return latest_date, result, current_period, latest_dates
 
     # Default: try datetime-aware shifts first
     idx = value_col.index
@@ -126,7 +134,7 @@ def GetDelta(ticker: str, freq: str, agg_freq: str, n_lags: int = 4, pct: bool =
             result = value_col - prev
 
         result = result.iloc[start_pos : last_pos + 1].tolist()
-        return latest_date, result, current_period
+        return latest_date, result, current_period, latest_dates
 
     # If not a datetime index, fall back to integer shifts
     key = (freq_code, agg_code)
@@ -148,7 +156,7 @@ def GetDelta(ticker: str, freq: str, agg_freq: str, n_lags: int = 4, pct: bool =
         result = value_col.diff(shift)
 
     result = result.iloc[start_pos : last_pos + 1].tolist()
-    return latest_date, result, current_period
+    return latest_date, result, current_period, latest_dates
 
 # Get the template and location for the updated version
 folder = base_dir / "MacroDashboard Versions"
@@ -175,8 +183,19 @@ max_row = ws.max_row
 
 # yellow fill for "fresh" release dates
 _FRESH_FILL = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
+_Revision_FILL = PatternFill(start_color="CCFFCC", end_color="CCFFCC", fill_type="solid")
 # "no fill" sentinel to clear existing fills
 _NO_FILL = PatternFill(fill_type=None)
+
+def isNewRelease(ticker: str,freq: str,raw: pd.DataFrame) -> bool:
+    latest_date, value, period,date_col=GetLevel(ticker,n_lags=1,freq=freq)
+    period=pd.to_datetime(period)
+    raw[f"Time_{ticker}"]=pd.to_datetime(raw[f"Time_{ticker}"])
+    release_time=raw[raw[f"Time_{ticker}"]==period].shape[0]
+    if release_time>1 :
+        return False
+    else:
+        return True
 
 def WritePanel(
     row: int,
@@ -187,12 +206,14 @@ def WritePanel(
     present_col: str,
     lag_cols: List[str],
     n_lags: int = 4,
+    data_dir=raw_location
 ) -> None:
     """
     Write one row for a panel (left or right).
     - ticker_col, freq_col, date_col, present_col: column letters (e.g. "B", "E", "C", "F")
     - lag_cols: list of lag column letters in order [Lag1_col, Lag2_col, ...]
     - n_lags: number of lags expected (defaults to 4)
+    :param data_dir:
     """
     # read ticker and freq values from the worksheet
     raw_ticker = ws[f"{ticker_col}{row}"].value
@@ -211,9 +232,9 @@ def WritePanel(
     units = str(raw_units).strip().lower()
 
     # get data using your GetLevel/GetDelta functions (they now return 3 values)
-    if 'delta' not in units:
+    if 'delta' not in units or (ticker in ['PRS85006092','GDPNOW']):
         try:
-            latest_date, recent_values, current_period = GetLevel(ticker, freq, n_lags=n_lags)
+            latest_date, recent_values, current_period,recent_dates = GetLevel(ticker, freq, n_lags=n_lags)
         except Exception as exc:
             # write error to date cell and skip writing values for this row
             ws[f"{date_col}{row}"].value = f"ERR: {exc}"
@@ -224,7 +245,7 @@ def WritePanel(
         pct = "%" in units
         agg = units[units.index("/") + 1:units.index("/") + 2]
         try:
-            latest_date, recent_values, current_period = GetDelta(ticker, freq, agg, n_lags=n_lags, pct=pct)
+            latest_date, recent_values, current_period,recent_dates = GetDelta(ticker, freq, agg, n_lags=n_lags, pct=pct)
         except Exception as exc:
             # write error to date cell and skip writing values for this row
             ws[f"{date_col}{row}"].value = f"ERR: {exc}"
@@ -233,6 +254,7 @@ def WritePanel(
 
     # recent_values expected chronological oldest ... most recent
     values = list(recent_values)
+    dates= list(recent_dates)
 
     # Ensure fixed length = n_lags + 1 by padding at front (older side) with None
     expected_len = n_lags + 1
@@ -251,6 +273,16 @@ def WritePanel(
         except IndexError:
             lag_values.append(None)
 
+    lag_dates = []
+    for i in range(1, len(lag_cols) + 1):
+        # i=1 -> lag1 => values[-2], general: values[-1 - i]
+        idx = -1 - i
+        try:
+            lag_dates.append(dates[idx])
+        except IndexError:
+            lag_dates.append(None)
+
+
     # write the representation-period (current_period) as a date (no time)
     try:
         # if current_period is a pandas Timestamp or datetime
@@ -262,12 +294,18 @@ def WritePanel(
         ws[f"{date_col}{row}"].value = current_period
 
     # Highlight date cell if latest_date is within 7 days of now; else clear fill
+    # Only if there's a new change, this cell will be filled
     try:
         if pd.notnull(latest_date):
             # use pandas Timedelta to handle timezone-aware timestamps gracefully
             latest_ts = pd.to_datetime(latest_date)
             if pd.Timestamp.now() - latest_ts <= pd.Timedelta(days=7):
-                ws[f"{date_col}{row}"].fill = _FRESH_FILL
+                if freq != 'D':
+                    raw_table = pd.read_csv(data_dir.joinpath(f'{freq}_Raws.csv'),low_memory=False)
+                    if isNewRelease(ticker, freq,raw_table):
+                        ws[f"{date_col}{row}"].fill = _FRESH_FILL
+                elif freq == 'D':
+                    ws[f"{date_col}{row}"].fill = _FRESH_FILL
             else:
                 ws[f"{date_col}{row}"].fill = _NO_FILL
         else:
@@ -280,6 +318,16 @@ def WritePanel(
     ws[f"{present_col}{row}"].value = present_value
     for col_letter, lag_value in zip(lag_cols, lag_values):
         ws[f"{col_letter}{row}"].value = lag_value
+
+    if freq != "D" and ticker != 'EXHOSLUSM495S':
+        raw_table = pd.read_csv(data_dir.joinpath(f'{freq}_Raws.csv'), low_memory=False)
+        for col_letter, lag_date in zip(lag_cols, lag_dates):
+            period = pd.to_datetime(lag_date)
+            raw_table[f"Time_{ticker}"] = pd.to_datetime(raw_table[f"Time_{ticker}"])
+            release_time = raw_table[raw_table[f"Time_{ticker}"] == period].shape[0]
+            if release_time > 0:
+                ws[f"{col_letter}{row}"].fill = _Revision_FILL
+
 
 # Output section is the left panel, and other three sections are in the right panel.
 # Can automate the identification of columns for each panel

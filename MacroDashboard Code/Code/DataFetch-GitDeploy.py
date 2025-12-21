@@ -1,11 +1,12 @@
 import pandas as pd
 from fredapi import Fred
 from pathlib import Path
+import fredpy as fp
 
 # Set up FRED API
 api = "958ccd9c67808caf9f941367daf6e812"
 fred = Fred(api_key=api)
-
+fp.api_key = api
 # Input tickers
 # Have to make sure all tickers on the template are included here so later retrieval won't have error
 monthly_tickers = [
@@ -42,7 +43,7 @@ monthly_tickers = [
     "PPIFIS",
     "PCEPI",
     "PCEPILFE",
-    "UMCSENT",
+    "MICH",
     'CES0500000003',
     "AHETPI",
     "CSUSHPINSA",
@@ -51,6 +52,7 @@ monthly_tickers = [
     'BOPTEXP',
     'BOPTIMP',
     'BOPSTB',
+    'TWEXBGSMTH'
 ]
 
 quarterly_tickers = [
@@ -74,18 +76,23 @@ weekly_tickers = [
 daily_tickers = [
     "T5YIFR",
     "T10YIE",
-    "DTWEXBGS",
     "DFF",
     "DGS2",
     "DGS5",
     "DGS10",
     "DBAA"
 ]
-
+# warnings and daily series do not have
 # Fetch Data and Align Index
-def Fetch(ticker_list, fred, freq,warning_list=[]):
+# warnings and daily series do not have
+# Fetch Data and Align Index
+def Fetch(ticker_list, fred, freq, warning_list=None):
+    if warning_list is None:
+        warning_list = []
+
     values_dfs = []
     dates_dfs = []
+    raw_dfs=[]
     # Set Frequency
     f = str(freq).strip().upper()
     if f in ("MONTHLY", "M"):
@@ -102,73 +109,108 @@ def Fetch(ticker_list, fred, freq,warning_list=[]):
         raise ValueError(f"Unsupported frequency: {freq}")
 
     # Get Data through Fred. throw an error if unable to fetch
-    for ticker in [t for t in ticker_list if t not in warning_list]:
-        try:
-            s = fred.get_series_all_releases(ticker)
-        except Exception as e:
-            print(f"Warning: couldn't fetch {ticker}: {e}")
-            continue
-        s["date"] = pd.to_datetime(s["date"])
-        s["realtime_start"] = pd.to_datetime(s["realtime_start"])
+    if period_code != "D":
+        for ticker in [t for t in ticker_list if t not in warning_list]:
+            try:
+                s = fred.get_series_all_releases(ticker)
+            except Exception as e:
+                print(f"Warning: couldn't fetch {ticker}: {e}")
+                continue
+            s["date"] = pd.to_datetime(s["date"])
+            s["realtime_start"] = pd.to_datetime(s["realtime_start"])
 
-        # Normalize timestamps by converting each release_date to the start of its time period
-        # (e.g., start of day, month, quarter, etc.) for consistent grouping and comparison
-        if period_code == "D":
-            s["Time"] = s["date"].dt.floor("D")
-        else:
-            s["Time"] = s["date"].dt.to_period(period_code).dt.to_timestamp()
+            # Normalize timestamps by converting each release_date to the start of its time period
+            # (e.g., start of day, month, quarter, etc.) for consistent grouping and comparison
+            if period_code == "D":
+                s["Time"] = s["date"].dt.floor("D")
+            else:
+                s["Time"] = s["date"].dt.to_period(period_code).dt.to_timestamp()
 
-        # Group by the period and take the last (i.e., the latest release for that period)
-        # ticker is the value column and real_time_start is the release date column
-        grouped = s.groupby("Time").agg({"value": "last", "realtime_start": "last"})
-        values_dfs.append(grouped[["value"]].rename(columns={"value": ticker}))
-        dates_dfs.append(grouped[["realtime_start"]].rename(columns={"realtime_start": ticker}))
+            # Group by the period and take the last (i.e., the latest release for that period)
+            # ticker is the value column and real_time_start is the release date column
+            grouped = s.groupby("Time").agg({"value": "last", "realtime_start": "last"})
+            values_dfs.append(grouped[["value"]].rename(columns={"value": ticker}))
+            dates_dfs.append(grouped[["realtime_start"]].rename(columns={"realtime_start": ticker}))
+            s=s[['realtime_start','value','Time']]
+            s=s.rename(columns={"realtime_start": f"realtime_start_{ticker}", "Time":f"Time_{ticker}",'value':f"value_{ticker}"})
+            raw_dfs.append(s)
 
-    # deal with the variables in
-    for ticker in warning_list:
-        try:
-            s = fred.get_series(ticker)
-        except Exception as e:
-            print(f"Warning: couldn't fetch {ticker}: {e}")
-            continue
+        for ticker in warning_list:
+            try:
+                s = fred.get_series(ticker)
+            except Exception as e:
+                print(f"Warning: couldn't fetch {ticker}: {e}")
+                continue
 
-        # Change to datetime
-        s.index = pd.to_datetime(s.index)
-        df = s.reset_index()
-        df.columns = ["release_date", ticker]
+            # Change to datetime
+            s.index = pd.to_datetime(s.index)
+            df = s.reset_index()
+            df.columns = ["release_date", ticker]
 
-        # Normalize timestamps by converting each release_date to the start of its time period
-        # (e.g., start of day, month, quarter, etc.) for consistent grouping and comparison
-        # here because release data is temporarily not available because the series is not available in fred. I just keep the release date blank
-        if period_code == "D":
-            df["Time"] = df["release_date"].dt.floor("D")
-        else:
-            df["Time"] = df["release_date"].dt.to_period(period_code).dt.to_timestamp()
+            # Normalize timestamps by converting each release_date to the start of its time period
+            # (e.g., start of day, month, quarter, etc.) for consistent grouping and comparison
+            # here because release data is temporarily not available because the series is not available in fred. I just keep the release date blank
+            if period_code == "D":
+                df["Time"] = df["release_date"].dt.floor("D")
+            else:
+                df["Time"] = df["release_date"].dt.to_period(period_code).dt.to_timestamp()
 
-        grouped = df.groupby("Time").agg({ticker: "last", "release_date": "last"})
-        values_dfs.append(grouped[[ticker]])
-        dates_dfs.append(grouped[["release_date"]].rename(columns={"release_date": ticker}))
+            grouped = df.groupby("Time").agg({ticker: "last", "release_date": "last"})
+            values_dfs.append(grouped[[ticker]])
+            dates_dfs.append(grouped[["release_date"]].rename(columns={"release_date": ticker}))
+
+    else:
+        for ticker in ticker_list:
+            try:
+                s = fred.get_series(ticker)
+            except Exception as e:
+                print(f"Warning: couldn't fetch {ticker}: {e}")
+                continue
+
+            # Change to datetime
+            s.index = pd.to_datetime(s.index)
+            df = s.reset_index()
+            df.columns = ["release_date", ticker]
+
+            # Normalize timestamps by converting each release_date to the start of its time period
+            # (e.g., start of day, month, quarter, etc.) for consistent grouping and comparison
+            # here because release data is temporarily not available because the series is not available in fred. I just keep the release date blank
+            if period_code == "D":
+                df["Time"] = df["release_date"].dt.floor("D")
+            else:
+                df["Time"] = df["release_date"].dt.to_period(period_code).dt.to_timestamp()
+
+            grouped = df.groupby("Time").agg({ticker: "last", "release_date": "last"})
+            values_dfs.append(grouped[[ticker]])
+            dates_dfs.append(grouped[["release_date"]].rename(columns={"release_date": ticker}))
 
     if not values_dfs:
-        return pd.DataFrame(), pd.DataFrame()
+        return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
     # concat the series of each economic data into a table
     values = pd.concat(values_dfs, axis=1, sort=True)
     dates = pd.concat(dates_dfs, axis=1, sort=True)
     values.index.name = "Time"
     dates.index.name = "Time"
-
-    return values, dates
+    if period_code == "D":
+            return values,dates, None
+    raws= pd.concat(raw_dfs, axis=1, sort=True)
+    raws.index.name = "Time"
+    return values, dates, raws
 
 # Existing Home Sale is not present in ALFRED database, and daily measures have too many vintage dates to be fetched through api
-monthly_values, monthly_dates = Fetch(monthly_tickers, fred, "M",['EXHOSLUSM495S'])
-quarterly_values, quarterly_dates = Fetch(quarterly_tickers, fred, "Q")
-weekly_values, weekly_dates = Fetch(weekly_tickers, fred, "W")
-daily_values, daily_dates = Fetch(daily_tickers, fred, "D",daily_tickers)
+monthly_values, monthly_dates, monthly_raws= Fetch(monthly_tickers, fred, "M",['EXHOSLUSM495S'])
+quarterly_values, quarterly_dates, quarterly_raws= Fetch(quarterly_tickers, fred, "Q")
+weekly_values, weekly_dates, weekly_raws= Fetch(weekly_tickers, fred, "W")
+daily_values, daily_dates, daily_raws= Fetch(daily_tickers, fred, "D")
 
 def AddRealAvgEarning():
     monthly_values['RCES0500000003*']=monthly_values['CES0500000003']/(monthly_values['PCEPI']/100)
     monthly_dates['RCES0500000003*']=monthly_dates['CES0500000003']
+    monthly_raws['Time_RCES0500000003*']=monthly_raws['Time_CES0500000003']
+    monthly_raws['value_RCES0500000003*']=monthly_raws['value_CES0500000003']
+    monthly_raws['realtime_start_RCES0500000003*']=monthly_raws['realtime_start_CES0500000003']
+
 
 AddRealAvgEarning()
 # Save the data table to the folder "Raw Data"
@@ -179,9 +221,12 @@ raw_location.mkdir(parents=True, exist_ok=True)
 
 monthly_values.to_csv(raw_location / "M_Values.csv")
 monthly_dates.to_csv(raw_location / "M_Dates.csv")
+monthly_raws.to_csv(raw_location / "M_Raws.csv")
 quarterly_values.to_csv(raw_location / "Q_Values.csv")
 quarterly_dates.to_csv(raw_location / "Q_Dates.csv")
+quarterly_raws.to_csv(raw_location / "Q_Raws.csv")
 weekly_values.to_csv(raw_location / "W_Values.csv")
 weekly_dates.to_csv(raw_location / "W_Dates.csv")
+weekly_raws.to_csv(raw_location / "W_Raws.csv")
 daily_values.to_csv(raw_location / "D_Values.csv")
 daily_dates.to_csv(raw_location / "D_Dates.csv")
