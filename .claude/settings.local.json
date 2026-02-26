@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ping:*)",
+      "Bash(powershell -Command:*)",
+      "Bash(python:*)"
+    ]
+  }
+}

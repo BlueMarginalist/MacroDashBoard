@@ -43,6 +43,7 @@ jobs:
         run: |
            python "MacroDashboard Code/Code/DataFetch-GitDeploy.py"
            python "MacroDashboard Code/Code/TemplateUpdate-GitDeploy.py"
+           python generate_html.py
 
       - name: Deploy all rendered reports to public GitHub Pages repo
         run: |
