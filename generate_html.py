@@ -514,6 +514,7 @@ def generate_html() -> str:
 
 if __name__ == "__main__":
     DOCS_DIR.mkdir(exist_ok=True)
+    (DOCS_DIR / ".nojekyll").touch()
     out_path = DOCS_DIR / "index.html"
     html = generate_html()
     out_path.write_text(html, encoding="utf-8")
