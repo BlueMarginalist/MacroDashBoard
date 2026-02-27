@@ -147,19 +147,19 @@ OUTPUT_INDICATORS = [
     ("RPCE Serv.", "PCESC96", "M", "Y/Y % Delta"),
     ("Retail Sales", "RSAFS", "M", "M/M % Delta"),
     ("Retail Sales", "RSAFS", "M", "Y/Y % Delta"),
-    ("Real Disp. Personal Inc.", "DSPIC96", "M", "M/M % Delta"),
-    ("Real Disp. Personal Inc.", "DSPIC96", "M", "Y/Y % Delta"),
+    ("Real Disposable Personal Income", "DSPIC96", "M", "M/M % Delta"),
+    ("Real Disposable Personal Income", "DSPIC96", "M", "Y/Y % Delta"),
     ("Personal Saving Rate", "PSAVERT", "M", "%, SAAR"),
     ("Vehicle Sales", "TOTALSA", "M", "Mln Units"),
     ("Vehicle Sales", "TOTALSA", "M", "Y/Y % Delta"),
     ("Cons Credit - Revolving", "REVOLSL", "M", "M/M % Delta SAAR"),
-    ("Cons Credit - NonRev", "NONREVSL", "M", "M/M % Delta SAAR"),
-    ("Gross Priv Fixed Inv NR", "PNFIC1", "Q", "Q/Q % Delta SAAR"),
+    ("Cons Credit - NonRevolving", "NONREVSL", "M", "M/M % Delta SAAR"),
+    ("Gross Priv Fixed Inv Non Res", "PNFIC1", "Q", "Q/Q % Delta SAAR"),
     ("Gross Priv Fixed Inv Res", "PRFIC1", "Q", "Q/Q % Delta SAAR"),
     ("Dur. Order", "DGORDER", "M", "M/M % Delta"),
     ("Dur. Order", "DGORDER", "M", "Y/Y % Delta"),
-    ("Dur Orders Non Def x Air", "ADXDNO", "M", "M/M % Delta"),
-    ("Dur Orders Non Def x Air", "ADXDNO", "M", "Y/Y % Delta"),
+    ("Dur Orders Non Def x Aicraft", "ADXDNO", "M", "M/M % Delta"),
+    ("Dur Orders Non Def x Aicraft", "ADXDNO", "M", "Y/Y % Delta"),
     ("IP", "INDPRO", "M", "M/M % Delta"),
     ("IP", "INDPRO", "M", "Y/Y % Delta"),
     ("Cap Util", "TCU", "M", "%"),
@@ -174,10 +174,10 @@ OUTPUT_INDICATORS = [
     ("Existing Home Sales", "EXHOSLUSM495S", "M", "Y/Y % Delta"),
     ("Gov. Cons", "GCE", "Q", "Trln $"),
     ("Gov. Cons", "GCE", "Q", "Q/Q % Delta SAAR"),
-    ("Exports", "BOPTEXP", "M", "Bln $"),
-    ("Exports", "BOPTEXP", "M", "M/M % Delta SA"),
-    ("Imports", "BOPTIMP", "M", "Bln $"),
-    ("Imports", "BOPTIMP", "M", "M/M % Delta SA"),
+    ("X", "BOPTEXP", "M", "Bln $"),
+    ("X", "BOPTEXP", "M", "M/M % Delta SA"),
+    ("M", "BOPTIMP", "M", "Bln $"),
+    ("M", "BOPTIMP", "M", "M/M % Delta SA"),
     ("Trade Balance", "BOPSTB", "M", "Bln $"),
     ("Trade Balance", "BOPSTB", "M", "M/M % Delta SA"),
 ]
@@ -185,7 +185,7 @@ OUTPUT_INDICATORS = [
 LABOR_INDICATORS = [
     ("NFP, Total NonFarm", "PAYEMS", "M", "M/M Delta (Thousands)"),
     ("NFP, Total NonFarm", "PAYEMS", "M", "Y/Y % Delta"),
-    ("ADP, Total NonFarm Priv", "ADPMNUSNERSA", "M", "M/M Delta (Thousands)"),
+    ("ADP, Total NonFarm Private", "ADPMNUSNERSA", "M", "M/M Delta (Thousands)"),
     ("UR", "UNRATE", "M", "%"),
     ("U-6", "U6RATE", "M", "%"),
     ("LFPR", "CIVPART", "M", "%"),
@@ -215,13 +215,13 @@ PRICES_INDICATORS = [
     ("ECI", "ECIWAG", "Q", "Q/Q % Delta"),
     ("ECI", "ECIWAG", "Q", "Y/Y % Delta"),
     ("Avg Hrly Earnings", "CES0500000003", "M", "M/M % Delta"),
-    ("Avg Hrly Earnings", "CES0500000003", "M", "Y/Y % Delta"),
+    ("Avg Hrly Earnings", "RCES0500000003*", "M", "Y/Y % Delta"),
     ("Real Avg. Hourly Earnings", "RCES0500000003*", "M", "M/M % Delta"),
     ("Real Avg. Hourly Earnings", "RCES0500000003*", "M", "Y/Y % Delta"),
     ("Case Shiller HPI", "CSUSHPINSA", "M", "M/M % Delta"),
     ("Case Shiller HPI", "CSUSHPINSA", "M", "Y/Y % Delta"),
-    ("Nominal Broad USD Index", "TWEXBGSMTH", "M", "Index Jan2006=100"),
-    ("Nominal Broad USD Index", "TWEXBGSMTH", "M", "Y/Y % Delta"),
+    ("Nominal Broad US Dollar Index", "TWEXBGSMTH", "M", "Index Jan2006=100"),
+    ("Nominal Broad US Dollar Index", "TWEXBGSMTH", "M", "Y/Y % Delta"),
     ("Export Prices", "IQ", "M", "M/M % Delta"),
     ("Export Prices", "IQ", "M", "Y/Y % Delta"),
     ("Import Prices", "IR", "M", "M/M % Delta"),
@@ -437,6 +437,10 @@ th {
     padding: 4px 8px;
     border: 1px solid #555;
     white-space: nowrap;
+}
+
+th:nth-child(n+3), td:nth-child(n+3) {
+    text-align: right;
 }
 
 td {
