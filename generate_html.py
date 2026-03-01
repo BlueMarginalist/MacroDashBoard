@@ -193,15 +193,16 @@ def generate_html() -> str:
     max_col  = ws.max_column   # 21  (A … U)
     max_row  = ws.max_row
 
-    # ── Column widths (px) ──────────────────────────────────────────────────
-    col_px = []
+    # ── Column widths (proportional %) ──────────────────────────────────────
+    col_chars = []
     for i in range(1, max_col + 1):
         letter = get_column_letter(i)
         dim    = ws.column_dimensions.get(letter)
         chars  = (dim.width if dim and dim.width else DEFAULT_COL_CHARS)
-        col_px.append(max(30, int(chars * CHAR_TO_PX)))
+        col_chars.append(max(1.0, chars))
 
-    total_width = sum(col_px)
+    total_chars = sum(col_chars)
+    col_pct = [f"{c / total_chars * 100:.3f}%" for c in col_chars]
 
     # ── Row heights (px) ────────────────────────────────────────────────────
     row_px = {}
@@ -275,7 +276,7 @@ def generate_html() -> str:
 
     # ── Column group ────────────────────────────────────────────────────────
     colgroup = "\n".join(
-        f'  <col style="width:{w}px">' for w in col_px
+        f'  <col style="width:{w}">' for w in col_pct
     )
 
     return f"""<!DOCTYPE html>
@@ -295,18 +296,14 @@ body {{
     padding: 8px;
 }}
 
-.wrap {{
-    overflow-x: auto;
-}}
-
 table {{
     border-collapse: collapse;
-    width: {total_width}px;
+    width: 100%;
     table-layout: fixed;
 }}
 
 td {{
-    border: 1px solid #d0d0d0;   /* default Excel gridline */
+    border: 1px solid #d0d0d0;   /* Excel-style gridlines */
     font-size: 12pt;
 }}
 
@@ -320,15 +317,12 @@ td {{
 
 @media print {{
     body {{ padding: 0; }}
-    .wrap {{ overflow: visible; }}
-    table {{ width: 100%; }}
     .footer {{ display: none; }}
 }}
 </style>
 </head>
 <body>
 
-<div class="wrap">
 <table>
 <colgroup>
 {colgroup}
@@ -337,7 +331,6 @@ td {{
 {"".join(chr(10) + row for row in rows_html)}
 </tbody>
 </table>
-</div>
 
 <div class="footer">Last updated: {now_utc}</div>
 
