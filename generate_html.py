@@ -26,8 +26,18 @@ XLSX_PATH     = VERSIONS_DIR / "Economic Dashboard V1-Template-UPDATE.xlsx"
 # ---------------------------------------------------------------------------
 # Conversion constants
 # ---------------------------------------------------------------------------
-CHAR_TO_PX        = 6.5    # Excel character-width unit → CSS px
+CHAR_TO_PX        = 8.0    # Excel character-width unit → CSS px
 PT_TO_PX          = 4 / 3  # Excel row-height points → px
+
+# Per-column minimum widths (px).  Key = 1-based column index.
+# Value/lag cols (F,G-J,Q,R-U) → 85 px; date cols (C,N) → 90 px
+COL_MIN_PX = {
+    3: 90,   # C – Latest Period
+    6: 85, 7: 85, 8: 85, 9: 85, 10: 85,   # F Present, G-J Lags (left panel)
+    11: 18,  # K – blank spacer, keep narrow
+    14: 90,  # N – Latest Period
+    17: 85, 18: 85, 19: 85, 20: 85, 21: 85,  # Q Present, R-U Lags (right panel)
+}
 DEFAULT_COL_CHARS = 8.0    # Excel default column width (char units)
 DEFAULT_ROW_PT    = 15.0   # Excel default row height (points)
 
@@ -193,16 +203,17 @@ def generate_html() -> str:
     max_col  = ws.max_column   # 21  (A … U)
     max_row  = ws.max_row
 
-    # ── Column widths (proportional %) ──────────────────────────────────────
-    col_chars = []
+    # ── Column widths (px, with per-column minimums) ────────────────────────
+    col_px = []
     for i in range(1, max_col + 1):
-        letter = get_column_letter(i)
-        dim    = ws.column_dimensions.get(letter)
-        chars  = (dim.width if dim and dim.width else DEFAULT_COL_CHARS)
-        col_chars.append(max(1.0, chars))
+        letter  = get_column_letter(i)
+        dim     = ws.column_dimensions.get(letter)
+        chars   = (dim.width if dim and dim.width else DEFAULT_COL_CHARS)
+        natural = int(chars * CHAR_TO_PX)
+        minimum = COL_MIN_PX.get(i, 30)
+        col_px.append(max(natural, minimum))
 
-    total_chars = sum(col_chars)
-    col_pct = [f"{c / total_chars * 100:.3f}%" for c in col_chars]
+    total_width = sum(col_px)
 
     # ── Row heights (px) ────────────────────────────────────────────────────
     row_px = {}
@@ -276,7 +287,7 @@ def generate_html() -> str:
 
     # ── Column group ────────────────────────────────────────────────────────
     colgroup = "\n".join(
-        f'  <col style="width:{w}">' for w in col_pct
+        f'  <col style="width:{w}px">' for w in col_px
     )
 
     return f"""<!DOCTYPE html>
@@ -296,9 +307,14 @@ body {{
     padding: 8px;
 }}
 
+.scroll-wrap {{
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}}
+
 table {{
     border-collapse: collapse;
-    width: 100%;
+    width: {total_width}px;
     table-layout: fixed;
 }}
 
@@ -317,12 +333,15 @@ td {{
 
 @media print {{
     body {{ padding: 0; }}
+    .scroll-wrap {{ overflow: visible; }}
+    table {{ width: 100%; }}
     .footer {{ display: none; }}
 }}
 </style>
 </head>
 <body>
 
+<div class="scroll-wrap">
 <table>
 <colgroup>
 {colgroup}
@@ -331,6 +350,7 @@ td {{
 {"".join(chr(10) + row for row in rows_html)}
 </tbody>
 </table>
+</div>
 
 <div class="footer">Last updated: {now_utc}</div>
 
